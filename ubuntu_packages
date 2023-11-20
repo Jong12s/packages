@@ -1,0 +1,62 @@
+#!/bin/bash
+echo "잠시 후 세팅이 시작됩니다"
+sleep 3
+echo "mariadb-server repo등록중..."
+sleep 1
+curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.6"
+sleep 1
+echo "mariadb-server 버전이 10.6으로 등록되었습니다"
+sleep 1
+PACKAGES="git tilix php php-opcache php-gd php-curl php-mysqlnd mariadb-server"
+echo "ubuntu linux의 업데이트를 시작합니다"
+sleep 1
+apt update -y
+echo "ubuntu linux의 업데이트가 완료되었습니다"
+sleep 1
+echo "잠시 후 패키지가 다운로드 됩니다"
+다운로드 되는 패키지는 "tilix php, mariadb, github 입니다"
+sleep 1
+apt install -y $PACKAGES
+sleep 1
+
+systemctl enable --now mariadb apache2
+sleep 1
+
+echo "gnuboard와 DVWA, http의 기본 index(앵무새)파일이 다운로드 됩니다"
+sleep 1
+
+git clone https://github.com/Jong12s/apache2.git /var/www/html/backupa
+cp -r /var/www/html/backupa/* /var/www/html/
+rm -rf /var/www/html/backupa/
+
+git clone https://github.com/gnuboard/gnuboard5.git /var/www/html/gnuboard
+mv /var/www/html/config.inc.php /var/www/html/DVWA/config/config.inc.php
+
+mkdir -m 777 /var/www/html/gnuboard/data
+chmod 777 -R /var/www/html/gnuboard
+git clone https://github.com/digininja/DVWA.git /var/www/html/DVWA
+
+
+
+chmod 777 -R /var/www/html/DVWA/config
+chmod 777 -R /var/www/html/DVWA/hackable/uploads/
+
+
+echo "mariadb에 gnuboard, dvwa 데이터베이스가 생성됩니다."
+sleep 1
+mysql -e "CREATE DATABASE gnuboard;"
+mysql -e "CREATE DATABASE dvwa;"
+echo "mariadb에 모든 권한을 가진 adm계정이 생성됩니다. 비밀번호는 adm입니다"
+sleep 1
+echo "mariadb에 gnuboard 데이터베이스에 모든 권한을 가진 gnu계정이 생성됩니다. 비밀번호는 gnu입니다"
+sleep 1
+echo "mariadb에 dvwa 데이터베이스에 모든 권한을 가진 dvwa계정이 생성됩니다. 비밀번호는 dvwa입니다"
+echo "위 생성된 계정은 데이터베이스 접속 계정이므로, dvwa접속계정이 아님을 알려드립니다."
+echo "dvwa의 접속 기본계정의 id는 admin, 비밀번호는 password입니다."
+sleep 1
+mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'adm'@'%' IDENTIFIED BY 'adm';"
+mysql -e "GRANT ALL PRIVILEGES ON gnuboard.* TO 'gnu'@'%' IDENTIFIED BY 'gnu';"
+mysql -e "GRANT ALL PRIVILEGES ON dvwa.* TO 'dvwa'@'%' IDENTIFIED BY 'dvwa';"
+mysql -e "FLUSH PRIVILEGES;"
+
+
