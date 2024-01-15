@@ -1,23 +1,107 @@
 #!/bin/bash
-echo "잠시 후 세팅이 시작됩니다"
+echo "전체설정 1번, IP설정 2번, dns 3번, APM 4번, mail(postfix) 5번"
+read -p "설치할 목록을 입력하세요 (1-5) : " choice
+echo ""
+echo "선택한 번호는 $choice번입니다."
+echo ""
+sleep 1
+case $choice in
+1)
+
+echo "NetworkManager를 사용하여 IP를 구성합니다."
+sleep 2
+ls /home
+read -p "사용자 id를 입력해 주세요(ex. rocky, roror) : " id_set
+read -p "사용할 ip를입력해 주세요(ex. rocky : 192.168.123.200) : " ip_set 
+read -p "설정할 1번 도메인을 입력해주세요(ex. rocky dns server : 192.168.123.200) : " dns1_set
+read -p "설정할 2번 도메인을 입력해주세요(ex. google : 8.8.8.8, kt : 168.126.63.1) : " dns2_set
+read -p "설정할 게이트웨이를 입력해주세요(ex. rocky : 192.168.123.1) : " gate_set
+nmcli d
+read -p "ip를 바꿀 네트워크 디바이스명을 입력하세요 ex)ens160,eth0 등등.. : " inter_set
+sleep 1
+ip_set=$ip_set/24
+echo ""
+echo "id : $id_set"
+echo "ip : $ip_set"
+echo "dns : $dns1_set, $dns2_set"
+echo "gateway : $gate_set"
+echo "네트워크 인터페이스 : $inter_set"
+echo "네트워크가 static으로 설정됩니다"
+echo ""
+sleep 2
+nmcli c modify $inter_set ipv4.address $ip_set
+nmcli c modify $inter_set ipv4.dns $dns1_set,$dns2_set
+nmcli c modify $inter_set ipv4.gateway $gate_set
+nmcli c modify $inter_set ipv4.method manual
+nmcli net off;nmcli net on
+echo "네트워크 설정이 완료되었습니다."
+echo ""
 sleep 3
-echo "mariadb-server repo등록중..."
-sleep 1
-curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.6"
-sleep 1
-echo "mariadb-server 버전이 10.6으로 등록되었습니다"
-sleep 1
-PACKAGES="httpd httpd-devel pcre-devel mod_ssl telnet-server tilix bind bind-utils php php-opcache php-gd php-curl php-mysqlnd mariadb-server mariadb wireshark mc vsftpd dhcp-server git"
+echo "잠시 후 세팅이 시작됩니다."
+echo ""
+PACKAGES="httpd httpd-devel pcre-devel mod_ssl telnet-server tilix bind bind-utils php php-opcache php-gd php-curl php-mysqlnd mariadb-server mariadb wireshark mc vsftpd dhcp-server git postfix dovecot roundcubemail"
 echo "rocky linux의 업데이트를 시작합니다"
 sleep 1
 dnf update -y
 echo "rocky linux의 업데이트가 완료되었습니다"
 sleep 1
 echo "잠시 후 패키지가 다운로드 됩니다"
-echo "다운로드 되는 패키지는 http 관련파일, telnet, tilix, dns서버, php, mariadb, wireshark, vsftpd, dhcp-server, git 입니다"
+echo "다운로드 되는 패키지는 http 관련파일, telnet, tilix, dns서버, php, mariadb, wireshark, vsftpd, dhcp-server, git, dovecot, postfix  입니다"
 sleep 1
 dnf install -y epel-release
 dnf install -y $PACKAGES
+sleep 5
+echo "DNS 의 설정을 시작합니다"
+echo ""
+sleep 1
+echo "rocky dns는 기본 rocky.co.kr로 설정됩니다. 추후 수정이 필요합니다."
+echo ""
+sleep 1
+echo "git, bind, bind-utils 패키지가 설치됩니다."
+sleep 2
+dnf install git bind bind-utils -y 1>/dev/null
+sleep 2
+echo "git, bind, bind-utils 패키지가 설치 되었습니다."
+sleep 1
+echo "필요한 파일들을 git에서 다운로드 받습니다."
+echo ""
+sleep 1
+git clone https://github.com/jong12s/dns 2>/dev/null
+chgrp -R named dns
+yes | cp -aPZ ./dns/centos.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/centos.co.kr.zone
+yes | cp -aPZ ./dns/rocky.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/rocky.co.kr.zone
+yes | cp -aPZ ./dns/ubuntu.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/ubuntu.co.kr.zone
+yes | cp -aPZ ./dns/named.conf /etc/ 2>/dev/null
+chcon system_u:object_r:named_conf_t:s0 /etc/named.conf
+yes | cp -aPZ ./dns/named.rfc19212.zones /etc/named.rfc1912.zones 2>/dev/null
+chcon system_u:object_r:named_conf_t:s0 /etc/named.rfc1912.zones
+rm -rf ./dns
+echo ""
+firewall-cmd --permanent --add-service=dns 2>/dev/null
+firewall-cmd --reload
+systemctl restart named
+sleep 1
+echo ""
+echo "설정된 DNS는 rocky, centos, ubuntu 입니다."
+sleep 2
+echo "rocky.co.kr : 192.168.123.200"
+sleep 1
+echo "centos.co.kr : 192.168.123.201"
+sleep 1
+echo "ubuntu.co.kr : 192.168.123.222 입니다."
+sleep 1
+echo "DNS 설정이 완료되었습니다."
+sleep 1
+echo "mariadb-server repo등록중..."
+sleep 1
+curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.6"
+sleep 1
+echo "mariadb-server 버전이 10.6으로 등록되었습니다"
+sleep 1
+
 sleep 1
 echo "selinux 정책이 설정됩니다"
 sleep 1
@@ -34,23 +118,15 @@ setsebool -P nis_enabled 1
 update-crypto-policies --set LEGACY
 echo "selinux 정책이 설정되고, selinux가 Permissive 상태로 임시 변경됩니다"
 sleep 1
-echo "방화벽에 http,https,mysql,dns,ftp,telnet가 추가됩니다"
-sleep 1
-firewall-cmd --permanent --add-service={http,https,mysql,dns,ftp,ssh,telnet}
-firewall-cmd --reload
-echo "현재 방화벽에서 오픈한 서비스들은"
-firewall-cmd --list-services
-echo "입니다"
-sleep 1
+echo "방화벽에 cockpit dhcpv6-client dns ftp http https imap imaps mysql nfs pop3 pop3s smtp smtp-submission smtps ssh telnet이 추가됩니다"
+sleep 2
 dnf groupinstall -y "Xfce" "base-x"
 echo "exec /usr/bin/xfce4-session" >> ~/.xinitrc
 
 echo "dhcp.conf.example 파일이 /etc/dhcp/dhcpd.conf로 복사되어 저장됩니다"
 cat /usr/share/doc/dhcp-server/dhcpd.conf.example | egrep -v "^#|^$" > /etc/dhcp/dhcpd.conf
 sleep 1
-echo "sshd, telnet.soket, vsftpd, named, httpd, mariadb가 재시작됩니다"
-systemctl enable --now sshd telnet.socket vsftpd named httpd mariadb
-sleep 1
+
 
 echo "gnuboard와 DVWA, bWAAP, http의 기본 index(앵무새)파일이 다운로드 됩니다"
 sleep 1
@@ -76,6 +152,7 @@ mysql -e "CREATE DATABASE IF NOT EXISTS gnuboard; \
           CREATE DATABASE IF NOT EXISTS bWAPP; \
           CREATE DATABASE IF NOT EXISTS mutillidae; \
           CREATE DATABASE IF NOT EXISTS paddler; \
+          CREATE DATABASE IF NOT EXISTS roundcubemail; \
           CREATE DATABASE IF NOT EXISTS db_home;"
 sleep 1
 mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'adm'@'%' IDENTIFIED BY 'adm'; \
@@ -86,6 +163,271 @@ mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'adm'@'%' IDENTIFIED BY 'adm'; \
           GRANT ALL PRIVILEGES ON paddler.* TO 'paddler'@'%' IDENTIFIED BY 'paddler'; \
           GRANT ALL PRIVILEGES ON db_home.* TO 'home'@'%' IDENTIFIED BY 'home'; \
           GRANT ALL PRIVILEGES ON insecure.* TO 'insecure'@'%' IDENTIFIED BY 'insecure'; \
+          GRANT ALL PRIVILEGES ON roundcubemail.* TO 'roundcubemail'@'%' IDENTIFIED BY 'roundcubemail'; \
+          FLUSH PRIVILEGES;"
+sleep 1
+mysql db_home < /var/www/html/home/free/free.sql 1>/dev/null
+mysql db_home < /var/www/html/home/free/free_ripple.sql 1>/dev/null
+mysql db_home < /var/www/html/home/member/member.sql 1>/dev/null
+mysql paddler < /var/www/html/paddler/free/db.sql 1>/dev/null
+sleep 1
+mysql -e "CREATE DATABASE IF NOT EXISTS insecure; \
+          USE insecure; \
+          CREATE TABLE IF NOT EXISTS members ( \
+            idx INT NOT NULL AUTO_INCREMENT, \
+            id VARCHAR(30), \
+            password VARCHAR(100), \
+            name VARCHAR(50), \
+            email VARCHAR(30), \
+            company VARCHAR(30), \
+            PRIMARY KEY (idx) \
+          ) DEFAULT CHARSET = utf8; \
+          CREATE TABLE IF NOT EXISTS insecure_board ( \
+            idx INT NOT NULL AUTO_INCREMENT, \
+            title VARCHAR(50), \
+            content TEXT, \
+            id VARCHAR(20), \
+            writer VARCHAR(30), \
+            password VARCHAR(50), \
+            file VARCHAR(50), \
+            regdate DATE, \
+            secret VARCHAR(2), \
+            PRIMARY KEY (idx) \
+          ) DEFAULT CHARSET = utf8; \
+          CREATE TABLE IF NOT EXISTS customer_info ( \
+            idx INT, \
+            id VARCHAR(15), \
+            password VARCHAR(30), \
+            jumin VARCHAR(15) \
+          ); \
+          INSERT INTO customer_info VALUES (1, 'admin', '@dmin!q@w#e', '810203-1023113'); \
+          INSERT INTO customer_info VALUES (2, 'gugucon', '99c0n', '861121-1244251'); \
+          INSERT INTO customer_info VALUES (3, 'sonata_zzang', 'sosohan123', '890912-1601812'); \
+          INSERT INTO customer_info VALUES (4, 'halls', 'halls920912', '921001-1881222'); \
+          INSERT INTO customer_info VALUES (5, 'tkworld', '1q2w3e4r', '870405-1285264');"
+sleep 1
+ausearch -c 'php-fpm' --raw | audit2allow -M php-fpm-mysql-socket
+sleep 1
+semodule -i php-fpm-mysql-socket.pp
+mysql roundcubemail < /usr/share/roundcubemail/SQL/mysql.initial.sql
+sleep 1
+sed -i 's/short_open_tag = Off/short_open_tag = On/' /etc/php.ini
+sed -i 's/#listen/listen/' /etc/dovecot/dovecot.conf
+systemctl restart php-fpm
+echo "mariadb에 모든 권한을 가진 adm계정이 생성됩니다. 비밀번호는 adm입니다"
+sleep 1
+echo "mariadb의 db명에 따라  모든 권한을 가진 계정이름'db', 비밀번호'db'가 생성됩니다. "
+echo "예) gnuboard, gnu, gnu...  DVWA, dvwa, dvwa"
+sleep 1
+echo "bWAPP의 접속 기본 계정의 id는 bee, 비밀번호는 bug입니다."
+echo "dvwa의 접속 기본계정의 id는 admin, 비밀번호는 password입니다."
+
+sleep 3
+echo "sshd telnet.socket vsftpd named httpd mariadb dovecot postfix가 재시작됩니다"
+
+echo "설정이 완료되었습니다. http://localhost/로 접속하여 확인하세요."
+sleep 2
+echo "메일 설정을 시작합니다."
+sleep 2
+git clone https://github.com/jong12s/mail ./mail_set 2>/dev/null
+sleep 1
+
+echo "postfix, roundmail, dovecot의 설정이 시작됩니다."
+sleep 1
+
+yes|cp ./mail_set/10-* /etc/dovecot/conf.d/ 2>/dev/null
+chcon -R system_u:object_r:dovecot_etc_t:s0 /etc/dovecot/conf.d/
+chmod 644 /etc/dovecot/conf.d/10-*
+
+yes|cp ./mail_set/config.inc.php /etc/roundcubemail/config.inc.php 2>/dev/null
+chcon system_u:object_r:etc_t:s0 /etc/roundcubemail/config.inc.php
+chown root:apache /etc/roundcubemail/config.inc.php
+chmod 640 /etc/roundcubemail/config.inc.php
+
+
+yes|cp ./mail_set/ma* /etc/postfix/ 2>/dev/null
+chcon system_u:object_r:postfix_etc_t:s0 /etc/roundcubemail/
+chmod 644 /etc/postfix/ma*
+
+
+yes|cp ./mail_set/roundcubemail.conf /etc/httpd/conf.d/roundcubemail.conf 2>/dev/null
+chcon system_u:object_r:httpd_config_t:s0 /etc/httpd/conf.d/roundcubemail.conf
+chmod 644 /etc/httpd/conf.d/roundcubemail.conf
+sed -i 's/#listen/listen/' /etc/dovecot/dovecot.conf
+rm -rf ./mail_set
+
+echo "mysql에 roundcubemail 데이터베이스가 생성됩니다."
+sleep 2
+echo "roundcubemail 데이터베이스의 모든 테이블에 대한 접근 권한을가진 사용자 roundcubemail이 생성됩니다"
+sleep 2
+echo "비밀번호는 ID와 동일한 roundcubemail 입니다."
+mysql -e "CREATE DATABASE IF NOT EXISTS roundcubemail; \
+          GRANT ALL PRIVILEGES ON roundcubemail.* TO 'roundcubemail'@'%' IDENTIFIED BY 'roundcubemail'; \
+          FLUSH PRIVILEGES;" 2>/dev/null
+mysql roundcubemail < /usr/share/roundcubemail/SQL/mysql.initial.sql 2>/dev/null
+
+systemctl start firewalld
+sleep 2
+firewall-cmd --permanent --add-service={cockpit,dhcpv6-client,dns,ftp,http,https,imap,imaps,mysql,nfs,pop3,pop3s,smtp,smtp-submission,smtps,ssh,telnet}
+firewall-cmd --reload
+systemctl enable --now sshd telnet.socket vsftpd named httpd mariadb dovecot postfix
+echo "모든 설정이 완료되었습니다."
+;;
+
+2)
+echo "NetworkManager를 사용하여 IP를 구성합니다."
+sleep 2
+read -p "사용할 ip를입력해 주세요(ex. rocky=192.168.123.200) : " ip_set 
+read -p "설정할 1번 도메인을 입력해주세요(ex. rocky dns server=192.168.123.200) : " dns1_set
+read -p "설정할 2번 도메인을 입력해주세요(ex. google=8.8.8.8, kt=168.126.63.1) : " dns2_set
+read -p "설정할 게이트웨이를 입력해주세요(ex. rocky=192.168.123.1) : " gate_set
+nmcli d
+read -p "ip를 바꿀 네트워크 디바이스명을 입력하세요 ex)ens160,eth0 등등.. : " inter_set
+sleep 1
+ip_set=$ip_set/24
+echo ""
+echo "ip : $ip_set"
+echo "dns : $dns1_set, $dns2_set"
+echo "gateway : $gate_set"
+echo "네트워크 인터페이스 : $inter_set"
+echo "네트워크가 static으로 설정됩니다"
+echo ""
+sleep 2
+nmcli c modify $inter_set ipv4.address $ip_set
+nmcli c modify $inter_set ipv4.dns $dns1_set,$dns2_set
+nmcli c modify $inter_set ipv4.gateway $gate_set
+nmcli c modify $inter_set ipv4.method manual
+nmcli net off;nmcli net on
+echo "네트워크 설정이 완료되었습니다."
+echo ""
+;;
+
+3)
+echo "DNS 의 설정을 시작합니다"
+echo ""
+sleep 1
+echo "rocky dns는 기본 rocky.co.kr로 설정됩니다. 추후 수정이 필요합니다."
+echo ""
+sleep 1
+echo "git, bind, bind-utils 패키지가 설치됩니다."
+sleep 2
+dnf install git bind bind-utils -y 1>/dev/null
+sleep 2
+echo "git, bind, bind-utils 패키지가 설치 되었습니다."
+sleep 1
+echo "필요한 파일들을 git에서 다운로드 받습니다."
+echo ""
+sleep 1
+git clone https://github.com/jong12s/dns 2>/dev/null
+chgrp -R named dns
+yes | cp -aPZ ./dns/centos.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/centos.co.kr.zone
+yes | cp -aPZ ./dns/rocky.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/rocky.co.kr.zone
+yes | cp -aPZ ./dns/ubuntu.co.kr.zone /var/named/ 2>/dev/null
+chcon system_u:object_r:named_zone_t:s0 /var/named/ubuntu.co.kr.zone
+yes | cp -aPZ ./dns/named.conf /etc/ 2>/dev/null
+chcon system_u:object_r:named_conf_t:s0 /etc/named.conf
+yes | cp -aPZ ./dns/named.rfc19212.zones /etc/named.rfc1912.zones 2>/dev/null
+chcon system_u:object_r:named_conf_t:s0 /etc/named.rfc1912.zones
+rm -rf ./dns
+echo ""
+firewall-cmd --permanent --add-service=dns 2>/dev/null
+firewall-cmd --reload
+systemctl restart named
+sleep 1
+echo ""
+echo "설정된 DNS는 rocky, centos, ubuntu 입니다."
+sleep 2
+echo "rocky.co.kr : 192.168.123.200"
+sleep 1
+echo "centos.co.kr : 192.168.123.201"
+sleep 1
+echo "ubuntu.co.kr : 192.168.123.222 입니다."
+sleep 1
+echo "DNS 설정이 완료되었습니다."
+;;
+
+4)
+echo "APM 설치가 시작됩니다."
+echo "여기선, APM 설치와 정책설정, PHP설정 등이 완료됩니다."
+sleep 2
+echo "mariadb-server repo를 등록합니다."
+echo ""
+sleep 1
+curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.6" 1>/dev/null
+sleep 1
+echo ""
+echo "성공적으로 repo를 등록하였습니다."
+echo "mariadb-server 버전이 10.6으로 등록되었습니다"
+echo ""
+sleep 1
+PACKAGES="httpd httpd-devel pcre-devel mod_ssl php php-opcache php-gd php-curl php-mysqlnd mariadb-server mariadb mc git roundcubemail rsyslog-mysql"
+echo "rocky linux의 업데이트를 시작합니다"
+sleep 1
+dnf update -y 1>/dev/null
+echo "rocky linux의 업데이트가 완료되었습니다"
+sleep 1
+echo "잠시 후 패키지가 다운로드 됩니다"
+sleep 1
+dnf install -y epel-release 1>/dev/null
+dnf install -y $PACKAGES 1>/dev/null
+echo "패키지 설치가 완료되었습니다"
+sleep 2
+echo "selinux 정책이 설정됩니다"
+sleep 1
+setsebool -P ftpd_full_access on
+setsebool -P ftpd_use_passive_mode 1
+setsebool -P httpd_can_network_connect 1
+setsebool -P httpd_read_user_content 1
+setsebool -P httpd_can_network_connect_db 1
+setsebool -P httpd_enable_homedirs 1
+setsebool -P httpd_unified 1
+setsebool -P domain_can_mmap_files 1
+setsebool -P nis_enabled 1
+
+update-crypto-policies --set LEGACY
+echo "selinux 정책이 설정됩니다."
+sleep 1
+echo "방화벽에 http https mysql가 추가됩니다."
+sleep 2
+
+echo "gnuboard와 DVWA, bWAAP, http의 기본 index(앵무새)파일이 다운로드 됩니다"
+sleep 1
+echo "github에서 파일을 불러옵니다..."
+git clone https://github.com/Jong12s/httpd.git /var/www/html/backupa
+sleep 1
+yes | cp -r /var/www/html/backupa/* /var/www/html/
+echo "github에서 파일이 다운로드 되었습니다"
+sleep 1
+rm -rf /var/www/html/backupa/
+sleep 1
+unzip -o /var/www/html/bWAPP.zip -d /var/www/html/
+unzip -o /var/www/html/gnuboard.zip -d /var/www/html/
+unzip -o /var/www/html/DVWA.zip -d /var/www/html/
+unzip -o /var/www/html/PHP.zip -d /var/www/html/
+unzip -o /var/www/html/mutillidae.zip -d /var/www/html/
+
+chown -R apache:apache /var/www/html/
+echo "mariadb에 gnuboard, dvwa, bWAPP, mutillidae, paddler, db_home, insecure 데이터베이스가 생성됩니다."
+sleep 1
+cat /usr/share/doc/rsyslog/mysql-createDB.sql | mysql 2>/dev/null
+mysql -e "CREATE DATABASE IF NOT EXISTS gnuboard; \
+          CREATE DATABASE IF NOT EXISTS dvwa; \
+          CREATE DATABASE IF NOT EXISTS bWAPP; \
+          CREATE DATABASE IF NOT EXISTS mutillidae; \
+          CREATE DATABASE IF NOT EXISTS paddler; \
+          CREATE DATABASE IF NOT EXISTS db_home;"
+sleep 1
+mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'adm'@'%' IDENTIFIED BY 'adm'; \
+          GRANT ALL PRIVILEGES ON gnuboard.* TO 'gnu'@'%' IDENTIFIED BY 'gnu'; \
+          GRANT ALL PRIVILEGES ON dvwa.* TO 'dvwa'@'%' IDENTIFIED BY 'dvwa'; \
+          GRANT ALL PRIVILEGES ON bWAPP.* TO 'bwapp'@'%' IDENTIFIED BY 'bwapp'; \
+          GRANT ALL PRIVILEGES ON mutillidae.* TO 'mutillidae'@'%' IDENTIFIED BY 'mutillidae'; \
+          GRANT ALL PRIVILEGES ON paddler.* TO 'paddler'@'%' IDENTIFIED BY 'paddler'; \
+          GRANT ALL PRIVILEGES ON db_home.* TO 'home'@'%' IDENTIFIED BY 'home'; \
+          GRANT ALL PRIVILEGES ON insecure.* TO 'insecure'@'%' IDENTIFIED BY 'insecure'; \
+          GRANT ALL PRIVILEGES ON Syslog.* TO 'syslog'@localhost IDENTIFIED BY 'syslog'; \
           FLUSH PRIVILEGES;"
 sleep 1
 mysql db_home < /var/www/html/home/free/free.sql
@@ -129,8 +471,10 @@ mysql -e "CREATE DATABASE IF NOT EXISTS insecure; \
           INSERT INTO customer_info VALUES (5, 'tkworld', '1q2w3e4r', '870405-1285264');"
 sleep 1
 ausearch -c 'php-fpm' --raw | audit2allow -M php-fpm-mysql-socket
+ausearch -c 'rs:main Q:Reg' --raw | audit2allow -M my-rsmainQReg
 sleep 1
 semodule -i php-fpm-mysql-socket.pp
+semodule -i my-rsmainQReg.pp
 sleep 1
 sed -i 's/short_open_tag = Off/short_open_tag = On/' /etc/php.ini
 systemctl restart php-fpm
@@ -142,3 +486,76 @@ sleep 1
 echo "bWAPP의 접속 기본 계정의 id는 bee, 비밀번호는 bug입니다."
 echo "dvwa의 접속 기본계정의 id는 admin, 비밀번호는 password입니다."
 echo "모든 설정들이 완료되었습니다."
+firewall-cmd --permanent --add-service={http,https,mysql}
+firewall-cmd --reload
+echo "입니다"
+sleep 3
+echo "httpd mariadb가 재시작됩니다"
+systemctl enable --now named httpd
+sleep 2
+
+;;
+
+5)
+echo "메일 설정을 시작합니다."
+sleep 2
+echo "메일 설정을 하기 위해선 4번 APM이 설치된 상태여야 합니다."
+sleep 2
+echo "APM이 설정되어있지 않는 상태라면 지금 컨트롤+C를 눌러 종료해주세요."
+sleep 3
+echo "git, postfix, roudcubemail, dovecot 패키지를 설치합니다."
+dnf install git postfix roundcubemail dovecot -y 1>/dev/null
+sleep 2
+echo "git, postfix, roudcubemail, dovecot 패키지 설치가 완료되었습니다."
+sleep 2
+echo "필요한 파일들을 git에서 다운로드 받습니다."
+git clone https://github.com/jong12s/mail ./mail_set 2>/dev/null
+sleep 1
+
+echo "postfix, roundmail, dovecot의 설정이 시작됩니다."
+sleep 1
+
+yes|cp ./mail_set/10-* /etc/dovecot/conf.d/ 2>/dev/null
+chcon -R system_u:object_r:dovecot_etc_t:s0 /etc/dovecot/conf.d/
+chmod 644 /etc/dovecot/conf.d/10-*
+
+yes|cp ./mail_set/config.inc.php /etc/roundcubemail/config.inc.php 2>/dev/null
+chcon system_u:object_r:etc_t:s0 /etc/roundcubemail/config.inc.php
+chown root:apache /etc/roundcubemail/config.inc.php
+chmod 640 /etc/roundcubemail/config.inc.php
+
+
+yes|cp ./mail_set/ma* /etc/postfix/ 2>/dev/null
+chcon system_u:object_r:postfix_etc_t:s0 /etc/roundcubemail/
+chmod 644 /etc/postfix/ma*
+
+
+yes|cp ./mail_set/roundcubemail.conf /etc/httpd/conf.d/roundcubemail.conf 2>/dev/null
+chcon system_u:object_r:httpd_config_t:s0 /etc/httpd/conf.d/roundcubemail.conf
+chmod 644 /etc/httpd/conf.d/roundcubemail.conf
+sed -i 's/#listen/listen/' /etc/dovecot/dovecot.conf
+rm -rf ./mail_set
+
+echo "mysql에 roundcubemail 데이터베이스가 생성됩니다."
+sleep 2
+echo "roundcubemail 데이터베이스의 모든 테이블에 대한 접근 권한을가진 사용자 roundcubemail이 생성됩니다"
+sleep 2
+echo "비밀번호는 ID와 동일한 roundcubemail 입니다."
+mysql -e "CREATE DATABASE IF NOT EXISTS roundcubemail; \
+          GRANT ALL PRIVILEGES ON roundcubemail.* TO 'roundcubemail'@'%' IDENTIFIED BY 'roundcubemail'; \
+          FLUSH PRIVILEGES;" 2>/dev/null
+mysql roundcubemail < /usr/share/roundcubemail/SQL/mysql.initial.sql 2>/dev/null
+
+systemctl start firewalld
+firewall-cmd --permanent --add-service={imap,imaps,mysql,pop3,pop3s,smtp,smtp-submission,smtps} 2>/dev/null
+echo "방화벽에 추가될 서비스들은{imap,imaps,mysql,pop3,pop3s,smtp,smtp-submission,smtps} 입니다. "
+firewall-cmd --reload
+sleep 2
+systemctl restart dovecot postfix
+echo "설정이 완료되었습니다."
+;;
+
+*)
+  echo "(1-5) 사이의 값을 입력하세요."
+  ;;
+esac
